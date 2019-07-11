@@ -1,58 +1,103 @@
-import RiotApiConst as RAC
 import requests
+import json
+import time
 
-# p=proxy, v=version, name=lol username, key= riot api key
-# returns the json of the request to get the account id
-def request_summoner(p, v, name, key):
-    response = requests.get(RAC.RGAPI_URL['summoner'].format(
-        proxy=p,
-        version=v,
-        ign=name,
-        api_key=key
-    ))
-    print(response.url)
-    return response.json()
+class GenerateRequest:
 
-# same as the function above however gets the status code using
-# the id found in request_summoner json output
-def request_spectator(p, v, name, key, id):
-    response = requests.get(RAC.RGAPI_URL['spectator'].format(
-        proxy=p,
-        version=v,
-        ign=name,
-        api_key=key,
-        user_id=id
-    ))
-    print(response.url)
-    return response.status_code
 
-# requests the json and the status codes
-# status codes are used to determine if user is in game or not
-def handle_request():
-    t = RAC.TOKENS
-    r_summoner = request_summoner(
-        t["proxy"], t["version"], t["ign"], t["api_key"])
-    r_spectator = request_spectator(
-        t["proxy"], t["version"], t["ign"], t["api_key"], r_summoner["id"])
+    def __init__(self, ref):
+        self.RGAPI_URL = {
+            'rgapiurl':'{proxy}/{category}/{version}/{category_by}/{ref}?api_key={api_key}',
+            #"summoner":"{proxy}/lol/summoner/{version}/summoners/by-name/{ign}?api_key={api_key}",
+            #"spectator":"{proxy}/lol/spectator/{version}/active-games/by-summoner/{user_id}?api_key={api_key}"
+        }
 
-    # 200 means in game
-    # 404 means either offline or not in game
-    if r_spectator == 200:
-        print(t["ign"]+" is in game "+"<"+str(r_spectator)+">")
-        print("\n")
-    elif r_spectator == 404:
-        print(t["ign"] + " is not in game "+"<"+str(r_spectator)+">")
+        with open("apikey.json") as f:
+            k = json.load(f)
 
-    return r_spectator
+        self.proxy = 'https://euw1.api.riotgames.com'
+        self.category = 'lol/summoner'
+        self.version = 'v4'
+        self.category_by = 'summoners/by-name'
+        self.ref = ref
+        self.api_key = k["key"]
 
-def check_ig(code):
+        self.summoner_url = self.__build_url()
+        self.spectator_url = None
+
+    def __build_url(self):
+        url = self.RGAPI_URL['rgapiurl'].format(
+            proxy=self.proxy,
+            category=self.category,
+            version=self.version,
+            category_by=self.category_by,
+            ref=self.ref,
+            api_key=self.api_key
+        )
+
+        return url
+
+    '''
+    def request_id(self):
+        summoner_json = requests.get(self.summoner_url)
+        return summoner_json.json()['id']
+    '''
+
+    def request_status_code(self):
+        self.set_spectator()
+        spectator_json = requests.get(self.spectator_url)
+        time.sleep(5)
+        return spectator_json.status_code
+
+    def request_json(self):
+        summoner_json = requests.get(self.summoner_url)
+        return summoner_json.json()
+
+    def set_spectator(self):
+        self.category = 'lol/summoner'
+        self.category_by = 'active-games/by-summoner'
+        self.ref = 'uGSlgOV2k_r---8-a1YdjXWbCzI0yfNUj-dSWqUpzR8j5k4'
+        #self.request_json()['id']
+
+        self.spectator_url = self.__build_url()
+
+class LoLRequest:
+    def __init__(self, ign):
+        self.ign = ign
+        self.generate_request = GenerateRequest(self.ign)
+
+    def handle_request(self, listener):
+        code = self.generate_request.request_status_code()
+        print(code)
+
         if code == 200:
-                check = handle_request()
-                if check == 404:
-                        return False
-                elif check == 200:
-                        return True
+            checker = self.check_summoner_status(code)
+            if checker == 404:
+                listener.stop()
+        elif code == 404:
+            print("{0} is currently not in game <{1}>".format(self.ign, code))
+            print("Terminating ... ")
+            listener.stop()
+        elif code == 403:
+            print(self.generate_request.summoner_url)
+            print(self.generate_request.spectator_url)
+            print(self.generate_request.request_json())
+            listener.stop()
+
+    def check_summoner_status(self, code):
+        while code == 200:
+            if code == 404:
+                return code
+            elif code == 500:
+                return code
+            elif code == 503:
+                return code
+
+            code = self.generate_request.request_status_code()
+            print("{0} is currently in game <{1}>".format(self.ign, code))
+
+            
+            
 
 
-     
 
