@@ -35,9 +35,14 @@ class GenerateRequest:
         return summoner_json.json()['id']
 
     def request_status_code(self):
-        spectator_json = requests.get(self.spectator_url)
-        print(self.summoner_url)
-        print(self.spectator_url)
+        try:
+            spectator_json = requests.get(self.spectator_url)
+            print(self.summoner_url)
+            print(self.spectator_url)
+            time.sleep(5)
+        except KeyError:
+            return -1
+
         return spectator_json.status_code
 
     def request_json(self, t):
@@ -54,54 +59,48 @@ class LoLRequest:
         self.ign = ign
         self.generate_request = GenerateRequest(self.ign)
         self.listener = listener
+        self.count = 0
 
     def handle_request(self):
         code = self.generate_request.request_status_code()
-        handler = threading.Thread(target=self.check_summoner_status, args=(code,))
-        print(code)
+        summoner_status = self.check_summoner_status(code)
 
-        if code == 200:
-            handler.start()
-            #self.check_summoner_status(listener, code)
-        elif code == 404:
+            
+        if summoner_status == 404:
             print("{0} is currently not in game <{1}>".format(self.ign, code))
             print("Terminating ... ")
+            curr_time = Date.datetime.now()
+            with open("num_clicks.log", "a") as f:
+                f.write(curr_time.strftime("[%d/%m/%Y %H:%M:%S] ") + str(self.count) + " clicks")
+                f.write("\n")
             self.listener.stop()
-        elif code == 403:
+            print(self.listener.isAlive())
+        elif summoner_status == 403:
             print(self.generate_request.summoner_url)
             print(self.generate_request.spectator_url)
             print(self.generate_request.request_json('spectator'))
             self.listener.stop()
+        
 
     def check_summoner_status(self, code):
         c = 0
+
         while code == 200:
+            code = self.generate_request.request_status_code()
             if code == 404:
+                print(code)
+                '''
                 self.listener.stop()
                 print("{0} is currently not in game <{1}>".format(self.ign, code))
-
-                curr_time = Date.datetime.now()
-                with open("num_clicks.log", "a") as f:
-                    f.write(curr_time.strftime("[%d/%m/%Y %H:%M:%S] ") + " clicks")
-                    f.write("\n")
-                exit()
-                break
+                '''
+                return code
             elif code == 500:
-                self.listener.stop()
-                break
+                return code
             elif code == 503:
-                self.listener.stop()
-                break
+                return code
 
-            code = self.generate_request.request_status_code()
             print("{0} is currently in game <{1}>".format(self.ign, code))
             c=c+1
             print(str(c))
-            time.sleep(5)
-
-    
-            
-            
-
-
+            print("Clicks: " + str(self.count)+"\n")
 
