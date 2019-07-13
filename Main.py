@@ -5,7 +5,7 @@ import threading
 ign = input ('[EUW1] LoL Username: ')
 lolr = LoLRequest(ign, None)
 handler = threading.Thread(target=lolr.handle_request)
-handler.start()
+
 
 
 def on_click(x, y, button, pressed):
@@ -14,6 +14,7 @@ def on_click(x, y, button, pressed):
 
 with Listener(on_click=on_click) as listener:
     lolr.listener = listener
+    handler.start()
     listener.join()
 #if __name__ == "__main__":
 #    main()
